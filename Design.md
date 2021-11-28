@@ -5,9 +5,10 @@
 > **Project Description:**
 >
 > 仅限对称轴向偏心受压混凝土计算设计。
-> 	
 >
-> The program is mainly develop by Python and QSS.
+> **Project Repository:**
+>
+> https://github.com/Hedge36/Concrete_design.git
 
 ## 2. Design
 
@@ -16,7 +17,6 @@
 ## 3. Strcture
 
 > 逻辑业务与窗口业务分离，主程序调起业务，线程更新界面，样式表美化界面。
->
 
 ## 4. Discussion
 
