@@ -63,6 +63,7 @@ class Calculator:
         checkeccent = x < xb    # 大偏心验证
         if checkeccent:  # 大偏心计算
             self.__As = self.leccent(e, alpha1, fc, x, h0, fy)
+            # x >= 2*self.a_s
         else:       # 小偏心计算
             self.__eccent = "小偏心受压"
             self.__As = self.seccent(alpha1, beta1, fc, h0, zeta_b, e, fy)
@@ -71,7 +72,9 @@ class Calculator:
         self.__pho = round(self.__As/(self.b * h0), 3)
         pho_c = pho_min*self.h/h0
         checkpho = self.__pho > pho_c  # 配筋率验证
-        if not checkpho:
+        if self.__pho > 0.05:
+            self.__checkpho = "超筋！"
+        elif not checkpho:
             self.__checkpho = "配筋率过小！"
 
         # 7. 承载力验算
@@ -84,8 +87,8 @@ class Calculator:
         """获取基本的计算参数。"""
         h0 = self.h - self.a_s     # 有效高度
         ea = max([self.h/30, 20])  # 附加偏心距
-        lc = 2400   # 计算长度
-        return h0, ea, lc
+        l0 = 1*self.l   # 计算长度,先取着1
+        return h0, ea, l0
 
     def getstrength(self):
         """获取纵筋，箍筋以及混凝土的强度。"""
@@ -142,7 +145,7 @@ class Calculator:
         return check
 
     def seceff(self, fc, l0, h0, ea) -> float:
-        """计算二阶效应参数"""
+        """计算二阶效应修正系数"""
         C = 0.7 + 0.3*min([self.M1/self.M2, self.M2/self.M1])
         C_m = C if C > 0.7 else 0.7     # 构件断截面偏心距调节系数
         zeta = 0.5*fc*self.__A/self.N/1e3
@@ -155,13 +158,13 @@ class Calculator:
         return M
 
     def leccent(self, e, alpha1, fc, x, h0, fy) -> float:
-        """大偏心受压计算"""
+        """大偏心受压配筋率计算"""
         As = (self.N*1e3*e-alpha1*fc*self.b *
               x*(h0-0.5*x))/fy/(h0 - self.a_s)
         return round(As, 2)
 
     def seccent(self, alpha1, beta1, fc, h0, zeta_b, e, fy) -> float:
-        """小偏心受压计算"""
+        """小偏心受压配筋率计算"""
         Nt = alpha1 * fc * self.b * h0
         zeta = zeta_b + (self.N*1e3 - zeta_b*Nt) / (
             self.N*e*1e3 - 0.43*Nt*h0 / (beta1-zeta_b) /
@@ -172,7 +175,7 @@ class Calculator:
 
     def queryparam(self, *names):
         """查询参数，固定值，包括A, As, M, Nu, checkNu, checkpho, 
-        eccent, pho, second。
+        eccent, pho, second，可输入其组合以实现多个参数查询。
 
         注意，大小写敏感。
 
@@ -208,3 +211,15 @@ class Calculator:
             print("\n目前暂不支持该参数的查询！")
         else:
             print("其余参数暂不支持查询")
+
+    def update(self, **maps):
+        """根据输入更新数据。
+        输入格式：b=100,l=300，大小写敏感。
+        """
+        keys = ["a_s", "b", "l", "ctype", "h",
+                "M1", "M2", "M", "rtype"]
+        for key, value in maps:
+            if key in keys:
+                exec("self.%s=%s" % (key, value), locals())
+                self.calculate()
+                # 懒得做数据检查
