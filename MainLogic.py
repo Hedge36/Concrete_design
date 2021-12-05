@@ -5,7 +5,7 @@
 # @Description : 对称配筋轴向偏心受压承载力验算
 
 # Discussion: 哪些变量作为实例变量，哪些需要封装？
-# Problem: phomin?箍筋有啥用？
+# Problem: 超筋如何调整?箍筋有啥用？
 # 关于多线程计算的思考
 
 class Calculator:
@@ -32,6 +32,7 @@ class Calculator:
         self.__eccent = "大偏心受压"    # 偏心类型
         self.__checkpho = "配筋满足要求"     # 配筋情况
         self.__checkNu = "轴向承载力满足要求"   # 承载情况
+        self.__availble = True        # 配筋方案是否可用
 
     def calculate(self):
         """验算混凝土压弯参数"""
@@ -74,14 +75,19 @@ class Calculator:
         checkpho = self.__pho > pho_c  # 配筋率验证
         if self.__pho > 0.05:
             self.__checkpho = "超筋！"
+            self.__availble = False
         elif not checkpho:
-            self.__checkpho = "配筋率过小！"
+            self.__checkpho = "配筋率过小！已修正。"
+            self.__pho = pho_min
+            self.__As = pho_min*self.b*self.h
+        # 未根据需求进行配筋
 
         # 7. 承载力验算
         self.__Nu = self.getNu(l0, fc, fy)
         checkNu = self.__Nu > self.N    # 轴向承载力验证
         if not checkNu:
             self.__checkNu = "轴向承载力不足！"
+            self.__availble = False
 
     def getparas(self):
         """获取基本的计算参数。"""
@@ -212,14 +218,19 @@ class Calculator:
         else:
             print("其余参数暂不支持查询")
 
+    def pstr(self, t):
+        if type(t) == str:
+            t = "\"" + t + "\""
+        return t
+
     def update(self, **maps):
         """根据输入更新数据。
         输入格式：b=100,l=300，大小写敏感。
         """
         keys = ["a_s", "b", "l", "ctype", "h",
-                "M1", "M2", "M", "rtype"]
-        for key, value in maps:
+                "M1", "M2", "N", "rtype"]
+        for key, value in maps.items():
             if key in keys:
-                exec("self.%s=%s" % (key, value), locals())
-                self.calculate()
-                # 懒得做数据检查
+                exec("self.%s=%s" % (key, self.pstr(value)), locals())
+        self.calculate()
+        # 懒得做数据检查
