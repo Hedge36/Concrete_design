@@ -2,10 +2,10 @@
 # -*- coding:utf-8 -*-
 # @Author : Tiantian Li
 # @File : Logic.py
-# @Description : 对称配筋轴向偏心受压承载力验算
+# @Description : 矩形截面轴向偏心受压截面设计
 
 # Discussion: 哪些变量作为实例变量，哪些需要封装？
-# Problem: 超筋如何调整?箍筋有啥用？
+# Problem: 超筋如何调整?承载力不足的如何进行修正？
 # 关于多线程计算的思考
 
 class Calculator:
@@ -20,22 +20,36 @@ class Calculator:
         self.N = 400    # 轴向力(kN)
         self.ctype = "C25"  # 混凝土类型
         self.rtype = "HRB500"   # 纵筋类型
+        self.checksym = True     # 对称配筋
+        self.As = 0  # 纵向受拉受拉钢筋配筋面积(mm^2)
+        self.test = dict()                # 测试用数据集
         # self.stype = "HRB335"   # 箍筋类型
 
         # 封装的计算变量
+        self.__A = 0   # 横截面积(mm^2)
         self.__M = 0    # 折算弯矩(kN*m)
         self.__Nu = 0  # 轴向承载力(kN)
         self.__As = 0   # 纵向钢筋配筋面积(mm^2)
-        self.__A = 0   # 横截面积(mm^2)
-        self.__pho = 0  # 配筋率
+        self.__As2 = 0  # 纵向受拉受拉钢筋配筋面积(mm^2)
+        self.__pho = 0  # 受拉区配筋率
+        self.__pho2 = 0  # 受压区配筋率
         self.__second = "无二阶效应"   # 二阶效应参数
         self.__eccent = "大偏心受压"    # 偏心类型
         self.__checkpho = "配筋满足要求"     # 配筋情况
         self.__checkNu = "轴向承载力满足要求"   # 承载情况
         self.__availble = True        # 配筋方案是否可用
 
+# —————————————————————————————————主函数区————————————————————————————————
+
     def calculate(self):
-        """验算混凝土压弯参数"""
+        self.__As2 = self.As   # 纯方便查参，没用
+        if self.checksym:
+            self.symmetry()
+        else:
+            self.asymmetry()
+
+    def symmetry(self):
+        """验算对称配筋条件下混凝土压弯参数"""
         # 1. 固定基本参数
         epsilor_cu = 0.0033    # 偏心受压区边缘极限应变值
         pho_min = 0.002     # 最小配筋率
@@ -45,7 +59,7 @@ class Calculator:
         fc, fy = self.getstrength()
         alpha1, beta1 = self.getab()
         self.__A = self.b*self.h
-
+        # 3. 内力信息，略
         # 4. 二阶效应验算
         check = self.checkeffect(l0, fc)
         if check:   # 考虑二阶效应
@@ -57,37 +71,137 @@ class Calculator:
         e0 = self.__M / self.N * 1e3
         ei = e0 + ea
         e = ei + self.h / 2 - self.a_s
+
         x = self.N*1e3/(alpha1*fc*self.b)
         zeta_b = beta1/(1+fy/(2e5*epsilor_cu))
         xb = zeta_b * h0
-
         checkeccent = x < xb    # 大偏心验证
         if checkeccent:  # 大偏心计算
-            self.__As = self.leccent(e, alpha1, fc, x, h0, fy)
+            self.__As2 = self.leccent(e, alpha1, fc, x, h0, fy)
             # x >= 2*self.a_s
         else:       # 小偏心计算
             self.__eccent = "小偏心受压"
-            self.__As = self.seccent(alpha1, beta1, fc, h0, zeta_b, e, fy)
+            self.__As2 = self.seccent(alpha1, beta1, fc, h0, zeta_b, e, fy)
+        self.__As = self.__As2
 
         # 6. 配筋验算
         self.__pho = round(self.__As/(self.b * h0), 3)
-        pho_c = pho_min*self.h/h0
-        checkpho = self.__pho > pho_c  # 配筋率验证
-        if self.__pho > 0.05:
+        checkpho = self.__pho > pho_min  # 配筋率验证
+        if self.__pho > 0.025:
             self.__checkpho = "超筋！"
             self.__availble = False
         elif not checkpho:
             self.__checkpho = "配筋率过小！已修正。"
             self.__pho = pho_min
             self.__As = pho_min*self.b*self.h
+        self.__pho2 = self.__pho
         # 未根据需求进行配筋
 
         # 7. 承载力验算
-        self.__Nu = self.getNu(l0, fc, fy)
-        checkNu = self.__Nu > self.N    # 轴向承载力验证
-        if not checkNu:
-            self.__checkNu = "轴向承载力不足！"
+        self.checkNu(l0, fc, fy)
+
+    def asymmetry(self):
+        """钢筋混凝土非对称配筋截面设计"""
+        # 1. 固定基本参数
+        epsilor_cu = 0.0033    # 偏心受压区边缘极限应变值
+        pho_min = 0.002     # 最小配筋率
+
+        # 2. 计算参数
+        h0, ea, l0 = self.getparas()
+        fc, fy = self.getstrength()
+        alpha1, beta1 = self.getab()
+        self.__A = self.b*self.h
+        # 3. 内力信息，略
+        # 4. 二阶效应验算
+        check = self.checkeffect(l0, fc)
+        if check:   # 考虑二阶效应
+            self.__M = self.seceff(fc, l0, h0, ea)
+        else:       # 不考虑二阶效应
+            self.__M = self.M2
+
+        # 5. 配筋计算
+        e0 = self.__M / self.N * 1e3
+        ei = e0 + ea
+        e = ei + self.h / 2 - self.a_s
+        self.test["e"] = e
+        zeta_b = beta1/(1+fy/(2e5*epsilor_cu))
+        xb = zeta_b * h0
+
+        # 判断破坏条件
+        # 假定大偏心
+        if ei > 0.3 * h0:
+            # __As2未知的情况
+            if self.__As2 == 0:
+                self.__As2 = self.leccent(e, alpha1, fc, xb, h0, fy)
+                # leccent只是公式刚好一样，没有直接关联
+                if self.__As2 < pho_min*self.b*self.h:
+                    self.__As2 = round(pho_min*self.b*self.h, 2)
+                self.__As = round((alpha1*fc*self.b*h0*zeta_b -
+                                   self.N*1e3)/fy + self.__As2, 2)
+            # __As2已知的情况
+            else:
+                Mu = self.N*1e3*e-fy*self.__As2*(h0 - self.a_s)
+                self.test["Mu"] = str(Mu/1e6)+"kN*m"
+                alpha_s = Mu/(alpha1*fc*self.b*h0**2)
+                zeta = 1 - (1-2*alpha_s)**0.5
+                self.test["ζ"] = zeta
+                x = zeta*h0
+                self.test["x"] = x
+                self.__As = round((alpha1*fc*self.b*x +
+                                   fy*self.__As2-self.N*1e3)/fy, 2)
+
+        # 假定小偏心
+        else:
+            self.__eccent = "小偏心受压"
+            # 反向破坏
+            if self.N*1e3 > fc*self.b*self.h:
+                e2 = self.h/2-self.a_s - (e0 - ea)
+                self.__As = round((self.N*1e3*e2-alpha1*fc*self.b * self.h
+                                   * (h0-0.5*self.h))/fy/(h0 - self.a_s), 2)
+            else:
+                self.__As = round(pho_min*self.b*self.h, 2)
+
+            u = self.a_s/h0 + fy*self.__As * \
+                (1-self.a_s/h0)/((zeta_b-beta1)*alpha1*fc*self.b*h0)
+            v = 2*self.N*1e3*e2/(alpha1*fc*self.b*h0**2) - \
+                2*beta1*fy*self.__As * (1-self.a_s/h0) / \
+                ((zeta_b-beta1)*alpha1*fc*self.b*h0)
+            zeta = round(u + (u**2+v)**0.5, 3)
+            self.test["ζ"] = zeta
+            zeta_cy = 2*beta1 - zeta_b
+            zeta_cm = self.h/h0
+            if zeta_cy > zeta > zeta_b:
+                self.__As2 = (self.N*1e3 - alpha1*fc*zeta*self.b*h0 +
+                              fy*self.__As*((zeta-beta1)/(zeta_b-beta1)))/fy
+            elif zeta_cm > zeta > zeta_cy:
+                zeta = self.a_s/h0 + ((self.a_s/h0)**2 +
+                                      2*(self.N*1e3*e2 / (alpha1*fc*self.b*h0**2) -
+                                         self.__As2*fy*(1-self.a_s/h0)/(alpha1*fc*self.b*h0)))**0.5
+                self.__As2 = (self.N*1e3 - alpha1*fc*zeta*self.b*h0 +
+                              fy*self.__As*((zeta-beta1)/(zeta_b-beta1)))/fy
+            elif zeta > zeta_cy and zeta > zeta_cm:
+                self.__As2 = (self.N*1e3-fc*self.b *
+                              self.h*(h0 - 0.5*self.h))/fy/(h0-self.a_s)
+            if self.__As2 < pho_min*self.b*self.h:
+                self.__As2 = round(pho_min*self.b*self.h, 2)
+        # self.checkeccent()
+
+        # 6. 配筋验算
+        self.__pho = round(self.__As/(self.b * h0), 3)
+        checkpho = self.__pho > pho_min  # 配筋率验证
+        if self.__pho > 0.025:
+            self.__checkpho = "超筋！"
             self.__availble = False
+        elif not checkpho:
+            self.__checkpho = "配筋率过小！已修正。"
+            self.__pho = pho_min
+            self.__As = pho_min*self.h*self.b
+        # 未根据需求进行配筋
+
+        # 7. 承载力验算
+        self.checkNu(l0, fc, fy)
+
+# ——————————————————————————————功能函数区——————————————————————————————————
 
     def getparas(self):
         """获取基本的计算参数。"""
@@ -121,27 +235,6 @@ class Calculator:
         alpha1, beta1 = csmap.get(cs, csmap[50])
         return alpha1, beta1
 
-    def getphi(self, p) -> float:
-        """根据l0/b查表5-1并插值得到稳定性系数phi"""
-        if p < 8:
-            return 1
-        elif p > 50:
-            return 0.19
-        plist = list(range(8, 52, 2))
-        philist = [1.00, 0.98, 0.95, 0.92, 0.87, 0.81, 0.75, 0.70,
-                   0.65, 0.60, 0.56, 0.52, 0.48, 0.44, 0.40, 0.36,
-                   0.32, 0.29, 0.26, 0.23, 0.21, 0.19]
-        i = int((p-8)/2)    # index of p
-        phi = philist[i] + (philist[i+1]-philist[i])/2*(p-plist[i])
-        return phi
-
-    def getNu(self, l0, fc, fy) -> float:
-        """计算受压钢筋承载力"""
-        p = l0 / self.b
-        phi = self.getphi(p)
-        Nu = 0.9*phi*(fc*self.h*self.b+fy*2*self.__As)
-        return round(Nu/1000, 2)
-
     def checkeffect(self, lc, fc) -> bool:
         """验算二阶效应"""
         condition1 = min([self.M1/self.M2, self.M2/self.M1])
@@ -155,7 +248,7 @@ class Calculator:
         C = 0.7 + 0.3*min([self.M1/self.M2, self.M2/self.M1])
         C_m = C if C > 0.7 else 0.7     # 构件断截面偏心距调节系数
         zeta = 0.5*fc*self.__A/self.N/1e3
-        zeta_c = zeta if zeta <= 1 else 1   # 截面曲率修正系数
+        zeta_c = zeta if zeta < 1 else 1   # 截面曲率修正系数
         eta_s = 1 + (l0/self.h)**2*zeta_c*h0/1300 / \
             (max(self.M1, self.M2)/self.N*1e3+ea)
         p = C_m*eta_s
@@ -179,28 +272,58 @@ class Calculator:
             fy / (h0 - self.a_s)
         return round(As, 2)
 
-    def queryparam(self, *names):
-        """查询参数，固定值，包括A, As, M, Nu, checkNu, checkpho, 
-        eccent, pho, second，可输入其组合以实现多个参数查询。
+    def checkeccent(self):
+        """不对称配筋下检查偏压情况"""
+        x = (self.N*1e3 - fy2*self.__As2 + fy1*self.__As)/(alpha1*fc*self.b)
 
+    def getphi(self, p) -> float:
+        """根据l0/b查表5-1并插值得到稳定性系数phi"""
+        if p < 8:
+            return 1
+        elif p > 50:
+            return 0.19
+        plist = list(range(8, 52, 2))
+        philist = [1.00, 0.98, 0.95, 0.92, 0.87, 0.81, 0.75, 0.70,
+                   0.65, 0.60, 0.56, 0.52, 0.48, 0.44, 0.40, 0.36,
+                   0.32, 0.29, 0.26, 0.23, 0.21, 0.19]
+        i = int((p-8)/2)    # index of p
+        phi = philist[i] + (philist[i+1]-philist[i])/2*(p-plist[i])
+        return phi
+
+    def checkNu(self, l0, fc, fy) -> float:
+        """验算轴心受压钢筋受压承载力"""
+        p = l0 / self.b
+        phi = self.getphi(p)
+        self.test["Φ"] = phi
+        Nu = 0.9*phi*(fc*self.h*self.b+fy*(self.__As+self.__As2))
+        self.__Nu = round(Nu/1000, 2)
+        checkNu = self.__Nu > self.N    # 轴向承载力验证
+        if not checkNu:
+            self.__checkNu = "轴向承载力不足！"
+            self.__availble = False
+
+    def pstr(self, t) -> str:
+        """update方法用于格式化输出字符串，添加转义符防止exec函数执行"""
+        if type(t) == str:
+            t = "\"" + t + "\""
+        return t
+
+
+# ———————————————————————————————接口函数区————————————————————————————————
+
+    def queryparam(self, *names):
+        """查询参数，固定值，包括A, As, M, Nu, checkNu, checkpho,
+        eccent, pho, second，可输入其组合以实现多个参数查询。
         注意，大小写敏感。
 
         A：横断面面积，mm^2
-
         As：配筋面积，mm^2
-
         M：折算弯矩，kN*m
-
         Nu：轴向承载力大小，kN
-
         checkNu：轴向承载力承载情况
-
         checkpho：配筋情况
-
         eccent：偏心类型
-
         pho：配筋率，%
-
         second：二阶效应判别
         """
         find = False
@@ -218,17 +341,12 @@ class Calculator:
         else:
             print("其余参数暂不支持查询")
 
-    def pstr(self, t):
-        if type(t) == str:
-            t = "\"" + t + "\""
-        return t
-
     def update(self, **maps):
         """根据输入更新数据。
         输入格式：b=100,l=300，大小写敏感。
         """
-        keys = ["a_s", "b", "l", "ctype", "h",
-                "M1", "M2", "N", "rtype"]
+        keys = ["a_s", "b", "l", "ctype", "h", "As",
+                "M1", "M2", "N", "rtype", "checksym"]
         for key, value in maps.items():
             if key in keys:
                 exec("self.%s=%s" % (key, self.pstr(value)), locals())
