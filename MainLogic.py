@@ -8,8 +8,11 @@
 # Problem: 超筋如何调整?承载力不足的如何进行修正？
 # 关于多线程计算的思考
 
+
 class Calculator:
-    def __init__(self):
+    """矩形截面钢筋混凝土设计类，参数data为预设的公称截面面积数据。"""
+
+    def __init__(self, data):
         # 面向窗体的变量
         self.b = 300    # 宽度(mm)
         self.h = 400    # 高度(mm)
@@ -22,8 +25,9 @@ class Calculator:
         self.rtype = "HRB500"   # 纵筋类型
         self.checksym = True     # 对称配筋
         self.As = 0  # 纵向受拉受拉钢筋配筋面积(mm^2)
-        self.test = dict()                # 测试用数据集
-        # self.stype = "HRB335"   # 箍筋类型
+        self.test = dict()  # 测试用数据集
+        self.data = data    # 公称截面面积数据表(mm^2)
+        # 不内置是不想在类内调用库
 
         # 封装的计算变量
         self.__A = 0   # 横截面积(mm^2)
@@ -38,6 +42,8 @@ class Calculator:
         self.__checkpho = "配筋满足要求"     # 配筋情况
         self.__checkNu = "轴向承载力满足要求"   # 承载情况
         self.__availble = True        # 配筋方案是否可用
+        self.__scheme = ""  # 受拉配筋设计
+        self.__scheme2 = ""  # 受压配筋设计
 
 # —————————————————————————————————主函数区————————————————————————————————
 
@@ -65,6 +71,7 @@ class Calculator:
         if check:   # 考虑二阶效应
             self.__M = self.seceff(fc, l0, h0, ea)
         else:       # 不考虑二阶效应
+            self.__second = "无二阶效应"
             self.__M = self.M2
 
         # 5. 配筋计算
@@ -77,6 +84,7 @@ class Calculator:
         xb = zeta_b * h0
         checkeccent = x < xb    # 大偏心验证
         if checkeccent and x >= 2*self.a_s:  # 大偏心计算
+            self.__eccent = "大偏心受压"
             self.__As2 = self.leccent(e, alpha1, fc, x, h0, fy)
         else:       # 小偏心计算
             self.__eccent = "小偏心受压"
@@ -91,8 +99,10 @@ class Calculator:
             self.__checkpho = "不满足整体最小配筋率（已修正）"
             self.__pho2 = 0.00275
             self.__As2 = round(self.__pho2*self.b*h0, 3)
+        self.__As2, self.__scheme2 = self.indexAs(self.__As2)
         self.__As = self.__As2
         self.__pho = self.__pho2
+        self.__scheme = self.__scheme2
         # 未根据需求进行配筋
 
         # 7. 承载力验算
@@ -115,6 +125,7 @@ class Calculator:
         if check:   # 考虑二阶效应
             self.__M = self.seceff(fc, l0, h0, ea)
         else:       # 不考虑二阶效应
+            self.__second = "无二阶效应"
             self.__M = self.M2
 
         # 5. 配筋计算
@@ -128,6 +139,7 @@ class Calculator:
         # 判断破坏条件
         # 假定大偏心
         if ei > 0.3 * h0:
+            self.__eccent = "大偏心受压"
             # __As2未知的情况
             if self.__As2 == 0:
                 self.__As2 = self.leccent(e, alpha1, fc, xb, h0, fy)
@@ -193,6 +205,8 @@ class Calculator:
         elif self.__pho+self.__pho2 < 0.055:
             self.__availble = False
             self.__checkpho = "不满足整体最小配筋率（自行修正）"
+        self.__As2, self.__scheme2 = self.indexAs(self.__As2)
+        self.__As, self.__scheme = self.indexAs(self.__As)
         # 未根据需求进行配筋
 
         # 7. 承载力验算
@@ -283,8 +297,17 @@ class Calculator:
             pho = pho_min
             As_temp = pho_min*self.h*self.b
         else:
+            self.__checkpho = "满足配筋率要求"
             As_temp = As
         return pho, As_temp
+
+    def indexAs(self, As):
+        """根据公称截面面积配筋"""
+        diameter, number = abs(self.data - As).stack().idxmin()
+        As = self.data.loc[diameter][number]
+        scheme = "%sФ%smm" % (number, diameter)
+        # return diameter, number, As
+        return float(As), scheme
 
     def getphi(self, p) -> float:
         """根据l0/b查表5-1并插值得到稳定性系数phi"""
@@ -308,9 +331,13 @@ class Calculator:
         Nu = 0.9*phi*(fc*self.h*self.b+fy*(self.__As+self.__As2))
         self.__Nu = round(Nu/1000, 2)
         checkNu = self.__Nu > self.N    # 轴向承载力验证
+        print(checkNu)
         if not checkNu:
             self.__checkNu = "轴向承载力不足（自行修正）"
             self.__availble = False
+        else:
+            self.__checkNu = "轴向承载力满足要求"
+            self.__availble = True
 
     def pstr(self, t) -> str:
         """update方法用于格式化输出字符串，添加转义符防止exec函数执行"""
@@ -334,12 +361,15 @@ class Calculator:
         checkNu：轴向承载力承载情况
         checkpho：配筋情况
         eccent：偏心类型
-        pho：配筋率，%
-        second：二阶效应判别
+        pho,pho2：受拉（压）钢筋配筋率，%
+        second：二阶效应判别及系数
+        scheme,scheme：配筋设计
+        available：配筋设计是否可用
         """
         find = False
         supports = ['A', 'As', 'M', 'Nu', 'checkNu', 'checkpho',
-                    'eccent', 'pho', 'second']
+                    'eccent', 'pho', 'second', 'scheme', 'scheme2',
+                    'pho2', 'available']
         for name in names:
             if name in supports:
                 if find == False:

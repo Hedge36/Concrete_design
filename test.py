@@ -1,4 +1,5 @@
 from MainLogic import Calculator
+import pandas as pd
 
 
 def testunit(i):
@@ -22,8 +23,8 @@ def testunit(i):
         if 0.95 < ans / cal < 1.05:
             pass
             # 测试用
-            # print("测试通过，参考答案%.3f，计算结果%.3f，偏差率%.2f%%。\n" %
-            #       (ans, cal, abs(cal-ans)/ans*100))
+            print("测试通过，参考答案%.3f，计算结果%.3f，偏差率%.2f%%。\n" %
+                  (ans, cal, abs(cal-ans)/ans*100))
         else:
             if_pass = 0
     else:
@@ -51,11 +52,14 @@ def test():
             print("第%d次测试失败" % (fail+1))
 
 
+data = pd.read_excel("./test.xlsx", index_col=0)
+
 with open("testdata.csv", encoding="utf-8") as f:
     dataset = f.readlines()[1::2]
-calculator = Calculator()
+calculator = Calculator(data)
 
-test()
+
+testunit(6)
 
 
 # 查看类各种属性
