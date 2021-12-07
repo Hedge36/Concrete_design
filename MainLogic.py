@@ -52,7 +52,7 @@ class Calculator:
         """验算对称配筋条件下混凝土压弯参数"""
         # 1. 固定基本参数
         epsilor_cu = 0.0033    # 偏心受压区边缘极限应变值
-        pho_min = 0.002     # 最小配筋率
+        pho_min = 0.002         # 最小配筋率
 
         # 2. 计算参数
         h0, ea, l0 = self.getparas()
@@ -76,25 +76,23 @@ class Calculator:
         zeta_b = beta1/(1+fy/(2e5*epsilor_cu))
         xb = zeta_b * h0
         checkeccent = x < xb    # 大偏心验证
-        if checkeccent:  # 大偏心计算
+        if checkeccent and x >= 2*self.a_s:  # 大偏心计算
             self.__As2 = self.leccent(e, alpha1, fc, x, h0, fy)
-            # x >= 2*self.a_s
         else:       # 小偏心计算
             self.__eccent = "小偏心受压"
             self.__As2 = self.seccent(alpha1, beta1, fc, h0, zeta_b, e, fy)
-        self.__As = self.__As2
 
         # 6. 配筋验算
-        self.__pho = round(self.__As/(self.b * h0), 3)
-        checkpho = self.__pho > pho_min  # 配筋率验证
-        if self.__pho > 0.025:
-            self.__checkpho = "超筋！"
+        self.__pho2, self__As2 = self.checkpho(self.__As2, pho_min, h0)
+        if self.__pho2 > 0.025:
             self.__availble = False
-        elif not checkpho:
-            self.__checkpho = "配筋率过小！已修正。"
-            self.__pho = pho_min
-            self.__As = pho_min*self.b*self.h
-        self.__pho2 = self.__pho
+            self.__checkpho = "超筋（自行修正）"
+        elif self.__pho2 < 0.00275:
+            self.__checkpho = "不满足整体最小配筋率（已修正）"
+            self.__pho2 = 0.00275
+            self.__As2 = round(self.__pho2*self.b*h0, 3)
+        self.__As = self.__As2
+        self.__pho = self.__pho2
         # 未根据需求进行配筋
 
         # 7. 承载力验算
@@ -104,7 +102,7 @@ class Calculator:
         """钢筋混凝土非对称配筋截面设计"""
         # 1. 固定基本参数
         epsilor_cu = 0.0033    # 偏心受压区边缘极限应变值
-        pho_min = 0.002     # 最小配筋率
+        pho_min = 0.002         # 最小配筋率
 
         # 2. 计算参数
         h0, ea, l0 = self.getparas()
@@ -153,9 +151,9 @@ class Calculator:
         # 假定小偏心
         else:
             self.__eccent = "小偏心受压"
+            e2 = self.h/2-self.a_s - (e0 - ea)
             # 反向破坏
             if self.N*1e3 > fc*self.b*self.h:
-                e2 = self.h/2-self.a_s - (e0 - ea)
                 self.__As = round((self.N*1e3*e2-alpha1*fc*self.b * self.h
                                    * (h0-0.5*self.h))/fy/(h0 - self.a_s), 2)
             else:
@@ -187,15 +185,14 @@ class Calculator:
         # self.checkeccent()
 
         # 6. 配筋验算
-        self.__pho = round(self.__As/(self.b * h0), 3)
-        checkpho = self.__pho > pho_min  # 配筋率验证
-        if self.__pho > 0.025:
-            self.__checkpho = "超筋！"
+        self.__pho, self__As = self.checkpho(self.__As, pho_min, h0)
+        self.__pho2, self__As2 = self.checkpho(self.__As2, pho_min, h0)
+        if self.__pho+self.__pho2 > 0.05:
             self.__availble = False
-        elif not checkpho:
-            self.__checkpho = "配筋率过小！已修正。"
-            self.__pho = pho_min
-            self.__As = pho_min*self.h*self.b
+            self.__checkpho = "超筋（自行修正）"
+        elif self.__pho+self.__pho2 < 0.055:
+            self.__availble = False
+            self.__checkpho = "不满足整体最小配筋率（自行修正）"
         # 未根据需求进行配筋
 
         # 7. 承载力验算
@@ -260,21 +257,34 @@ class Calculator:
         """大偏心受压配筋率计算"""
         As = (self.N*1e3*e-alpha1*fc*self.b *
               x*(h0-0.5*x))/fy/(h0 - self.a_s)
-        return round(As, 2)
+        return round(As, 3)
 
     def seccent(self, alpha1, beta1, fc, h0, zeta_b, e, fy) -> float:
         """小偏心受压配筋率计算"""
         Nt = alpha1 * fc * self.b * h0
         zeta = zeta_b + (self.N*1e3 - zeta_b*Nt) / (
-            self.N*e*1e3 - 0.43*Nt*h0 / (beta1-zeta_b) /
+            (self.N*e*1e3 - 0.43*Nt*h0) / (beta1-zeta_b) /
             (h0-self.a_s)+Nt)
+        self.test["ζ"] = zeta
         As = (self.N * e * 1e3 - Nt * h0 * zeta * (1 - 0.5 * zeta)) / \
             fy / (h0 - self.a_s)
-        return round(As, 2)
+        return round(As, 3)
 
     def checkeccent(self):
         """不对称配筋下检查偏压情况"""
         x = (self.N*1e3 - fy2*self.__As2 + fy1*self.__As)/(alpha1*fc*self.b)
+
+    def checkpho(self, As, pho_min, h0):
+        """检查配筋率,如果配筋率满足要求，返回配筋率与配筋面积，否则修正。"""
+        pho = round(As/(self.b * h0), 3)
+        checkpho = pho > pho_min  # 配筋率验证
+        if not checkpho:
+            self.__checkpho = "不满足最小配筋率（已修正）"
+            pho = pho_min
+            As_temp = pho_min*self.h*self.b
+        else:
+            As_temp = As
+        return pho, As_temp
 
     def getphi(self, p) -> float:
         """根据l0/b查表5-1并插值得到稳定性系数phi"""
@@ -299,7 +309,7 @@ class Calculator:
         self.__Nu = round(Nu/1000, 2)
         checkNu = self.__Nu > self.N    # 轴向承载力验证
         if not checkNu:
-            self.__checkNu = "轴向承载力不足！"
+            self.__checkNu = "轴向承载力不足（自行修正）"
             self.__availble = False
 
     def pstr(self, t) -> str:
@@ -310,6 +320,7 @@ class Calculator:
 
 
 # ———————————————————————————————接口函数区————————————————————————————————
+
 
     def queryparam(self, *names):
         """查询参数，固定值，包括A, As, M, Nu, checkNu, checkpho,

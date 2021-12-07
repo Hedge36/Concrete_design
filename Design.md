@@ -12,7 +12,7 @@
 
 ## 2. Design
 
-> Code Mainly divided into two part, including CoreLogic and UIdesign. Both should be developed in `Class`.  In general, the idea of single-class inheritance is adopted, and the interface and logic are developed separately. The logic part is completely developed by Python, and the interface part is mainly developed by Python's **PyQt5** and **QSS**. 
+> 使用语言Python，代码架构主要分为CoreLogic和UIdesign两部分。 两者都通过类进行模块化开发。 采用单类继承的思想，接口和逻辑分别开发。 逻辑部分由Python基础语法开发，接口部分主要由Python的**PyQt5**和**QSS**开发。
 
 ## 3. Strcture
 
