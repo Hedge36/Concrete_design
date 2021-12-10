@@ -16,10 +16,10 @@ def testunit(i):
     if_pass = 1
     paras, ans = dataset[i].rstrip().split("|")
     data = eval("{"+paras+"}")
-    calculator.update(**data)
+    calculator.update(data)
     if ans != "True":
         ans = float(ans)
-        cal = round(calculator._Calculator__As, 3)
+        cal = round(calculator.As, 3)
         if 0.95 < ans / cal < 1.05:
             pass
             # 测试用
@@ -45,7 +45,7 @@ def test():
             failed.append(i)
         else:
             none += 1
-    print("测试通过率%.2f%%(%d次测试，%d次通过，%d次无答案)" %
+    print("测试通过率:%.2f%%(%d次测试，%d次通过，%d次无答案)" %
           (passtimes/(size-none)*100, size, passtimes, none))
     if failed:
         for fail in failed:
@@ -59,8 +59,7 @@ with open("testdata.csv", encoding="utf-8") as f:
 calculator = Calculator(data)
 
 
-testunit(6)
-
+test()
 
 # 查看类各种属性
 # print(calculator.__dict__)
