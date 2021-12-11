@@ -30,13 +30,15 @@ class Calculator:
         self.fy = None
 
         self.A = 0   # 横截面积(mm^2)
-        self.M = 0    # 折算弯矩(kN*m)
+        self.M = 0    # 弯矩设计值(kN*m)
         self.Nu = 0  # 轴向承载力(kN)
         self.As = 0   # 纵向钢筋配筋面积(mm^2)
         self.As2 = 0  # 纵向受拉受拉钢筋配筋面积(mm^2)
+        self.rAs = 0    # 实际纵向钢筋配筋面积(mm^2)
+        self.rAs2 = 0    # 实际纵向受压钢筋配筋面积(mm^2)
         self.pho = 0  # 受拉区配筋率
         self.pho2 = 0  # 受压区配筋率
-        self.second = "由于①②③中都满足<0,所以无须考虑二阶效应；"   # 二阶效应参数
+        self.second = "由于式①②③都小于0,所以无须考虑二阶效应；"   # 二阶效应参数
         self.eccent = "大偏心受压"    # 偏心类型
         self.checkpho = "配筋满足要求"     # 配筋情况
         self.checkNu = "轴向承载力满足要求"   # 承载情况
@@ -46,7 +48,6 @@ class Calculator:
 
 
 # —————————————————————————————————主函数区————————————————————————————————
-
 
     def calculate(self):
         if self.checksym:
@@ -106,8 +107,9 @@ class Calculator:
             self.checkpho = "不满足整体最小配筋率（已修正）"
             self.pho2 = 0.00275
             self.As2 = round(self.pho2*self.b*h0, 3)
-        self.As2, self.scheme2 = self.indexAs(self.As2)
         self.As = self.As2
+        self.rAs2, self.scheme2 = self.indexAs(self.As2)
+        self.rAs = self.rAs2
         self.pho = self.pho2
         self.scheme = self.scheme2
         # 未根据需求进行配筋
@@ -212,8 +214,8 @@ class Calculator:
         # self.checkeccent()
 
         # 6. 配筋验算
-        self.pho, selfAs = self.check_pho(self.As, pho_min, h0)
-        self.pho2, selfAs2 = self.check_pho(self.As2, pho_min, h0)
+        self.pho, self.As = self.check_pho(self.As, pho_min, h0)
+        self.pho2, self.As2 = self.check_pho(self.As2, pho_min, h0)
         if self.pho+self.pho2 > 0.05:
             self.availble = False
             self.checkpho = "超筋（自行修正）"
@@ -222,10 +224,10 @@ class Calculator:
             self.checkpho = "不满足整体最小配筋率（自行修正）"
 
         if ka == 1:
-            self.As2, self.scheme2 = self.indexAs(self.As2)
+            self.rAs2, self.scheme2 = self.indexAs(self.As2)
         else:
-            self.scheme2 = "已知面积，不进行配筋方案"
-        self.As, self.scheme = self.indexAs(self.As)
+            self.scheme2 = "已知配筋方案"
+        self.rAs, self.scheme = self.indexAs(self.As)
         # 未根据需求进行配筋
 
         # 7. 承载力验算
@@ -347,7 +349,7 @@ class Calculator:
         p = l0 / self.b
         phi = self.getphi(p)
         self.test["Φ"] = phi
-        Nu = 0.9*phi*(fc*self.h*self.b+fy*(self.As+self.As2))
+        Nu = 0.9*phi*(fc*self.h*self.b+fy*(self.rAs+self.rAs2))
         self.Nu = round(Nu/1000, 2)
         checkNu = self.Nu > self.N    # 轴向承载力验证
         if not checkNu:
@@ -366,8 +368,9 @@ class Calculator:
 
 # ———————————————————————————————输出区————————————————————————————————
 
-    def textedit(self):
 
+    def textedit(self):
+        """打印详细计算过程"""
         h0, ea, l0 = self.getparas()
         if self.fc == None and self.fy == None:
             fc, fy = self.getstrength()
@@ -375,63 +378,61 @@ class Calculator:
             fc = self.fc
             fy = self.fy
 
-        h0 = str(self.h-self.a_s)
-        e0 = self.M/self.N
+        h0 = self.h-self.a_s
+        e0 = self.M*1e3/self.N
         ei = e0+ea
-        ea = str(ea)
-        A = str(self.A)
-        t1 = ["[解]:\n1)截面几何信息:\nh0=h-as=", h0, "mm;\nea==Max(h/30,20)=",
-              ea, "\n横截面积:A=bh=", A, "mm^2"]
+        t1 = """[解]:1)截面几何信息:
+        h_0=h-as=%d mm;
+        ea=max(h/30,20)=%.2f mm;
+        横截面积A=bh=%d mm^2
+        """ % (h0, ea, self.A)
 
-        fc = str(fc)
-        fy = str(fy)
-        t2 = ["\n2)材料强度信息:\nfc=", fc, "MPa,fy=", fy, "MPa;"]
+        t2 = """\n2)材料强度信息:
+        fc=%.1f MPa;
+        fy=%d MPa;
+        """ % (fc, fy)
 
-        M = str(self.M)
-        try:
-            second = self.second+" "
-        except:
-            second = "由于①②③中都满足存在式子>0,所以必须考虑二阶效应；"
-        t3 = ["\n3)二阶效应计算信息:\n①M1/M2-0.9;\n②N/(fcA)-0.9;\n③lc/i-34+12(M1/M2);\n",
-              second, "\n折算弯矩:", M, "kN*m"]
+        if type(self.second) == str:
+            second = self.second
+        else:
+            second = "由于①②③中存在式子>0,所以必须考虑二阶效应，此时，二阶效应系数为%.2f" % self.second
+        t3 = """\n3)二阶效应计算信息:
+        ①M1/M2-0.9;
+        ②N/(fcA)-0.9;
+        ③lc/i-34+12(M1/M2);
+        %s，弯矩设计值为 %.2fkN*m
+        """ % (second, self.M)
 
-        e0 = str(e0)
-        ei = str(ei)
+        t4 = """\n4)计算配筋:
+        e0=M\\N=%.3f mm;
+        ei=e0+ea= %.3fmm;
+        判断破坏类型: %s
+        纵向受拉钢筋配筋面积:%.2f mm^2
+        纵向受压钢筋配筋面积:%.2f mm^2
+        """ % (e0, ei, self.eccent, self.As, self.As2)
 
-        As = str(self.As)
-        As2 = str(self.As2)
-        t4 = ["\n4)计算配筋:\ne0=M \ N=", e0, "mm;\n", "ei=e0+ea=", ei, "\n", "判断破坏条件:", self.eccent,
-              "\n纵向钢筋配筋面积:", As, "mm^2\n纵向受压钢筋配筋面积:", As2, "mm^2"]
+        t5 = """\n5)验算适用条件:
+        受拉区配筋率:%.3f%%
+        受压区配筋率:%.3f%%
+        验算最小配筋率情况：%s
+        """ % (self.pho, self.pho2, self.checkpho)
 
-        pho = str(self.pho)
-        pho2 = str(self.pho2)
-        t5 = ["\n5)验算适用条件:\n受拉区配筋率:", pho, "\n受压区配筋率:",
-              pho2, "\n验算最小配筋率：", self.checkpho]
+        t6 = """\n6)根据公称截面面积配筋:
+        由计算得到配筋面积查附表3-1，
+        受拉钢筋采用%s(As=%smm^2)
+        受压钢筋采用%s(As'=%smm^2)
+        """ % (self.scheme, self.rAs, self.scheme2, self.rAs2)
 
-        Nu = str(self.Nu)
-        t6 = ["\n6)验算垂直于弯矩作用平面的轴心受压承载力:\nNu=0.9φ[fcbh+fy'(As'+As)]=",
-              Nu, "\n", self.checkNu]
+        t7 = """\n7)验算垂直于弯矩作用平面的轴心受压承载力:
+        根据实际配筋面积计算Nu可得：
+        Nu=0.9φ[fcbh+fy'(As'+As)]= %.2f kN,%s
+        """ % (self.Nu, self.checkNu)
 
-        t7 = ["\n7)根据公称截面面积配筋:\n查表得：As采用：",
-              self.scheme, ",As'采用：", self.scheme2]
-
-        text31 = "".join(t1)
-        text32 = "".join(t2)
-        text33 = "".join(t3)
-        text34 = "".join(t4)
-        text35 = "".join(t5)
-        text36 = "".join(t6)
-        text37 = "".join(t7)
-        texta3 = [text31, text32, text33, text34, text35, text36, text37]
-
-        self.text1 = self.As
-        self.text2 = self.As2
-        self.text3 = "".join(texta3)
-        self.text = [self.text1, self.text2, self.text3]
+        self.text3 = t1+t2+t3+t4+t5+t6+t7
+        self.text = [self.As, self.As2, self.text3]
 
 
 # ———————————————————————————————接口函数区————————————————————————————————
-
 
     def update(self, maps):
         """根据输入更新数据。
