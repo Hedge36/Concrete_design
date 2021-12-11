@@ -26,6 +26,8 @@ class Calculator:
         self.checksym = True     # 对称配筋
         self.test = dict()  # 测试用数据集
         self.data = data    # 公称截面面积数据表(mm^2)
+        self.fc = None
+        self.fy = None
 
         self.A = 0   # 横截面积(mm^2)
         self.M = 0    # 折算弯矩(kN*m)
@@ -34,7 +36,7 @@ class Calculator:
         self.As2 = 0  # 纵向受拉受拉钢筋配筋面积(mm^2)
         self.pho = 0  # 受拉区配筋率
         self.pho2 = 0  # 受压区配筋率
-        self.second = "无二阶效应"   # 二阶效应参数
+        self.second = "由于①②③中都满足<0,所以无须考虑二阶效应；"   # 二阶效应参数
         self.eccent = "大偏心受压"    # 偏心类型
         self.checkpho = "配筋满足要求"     # 配筋情况
         self.checkNu = "轴向承载力满足要求"   # 承载情况
@@ -42,13 +44,16 @@ class Calculator:
         self.scheme = ""  # 受拉配筋设计
         self.scheme2 = ""  # 受压配筋设计
 
+
 # —————————————————————————————————主函数区————————————————————————————————
+
 
     def calculate(self):
         if self.checksym:
             self.symmetry()
         else:
             self.asymmetry()
+        self.textedit()  # 输出
 
     def symmetry(self):
         """验算对称配筋条件下混凝土压弯参数"""
@@ -58,7 +63,13 @@ class Calculator:
 
         # 2. 计算参数
         h0, ea, l0 = self.getparas()
-        fc, fy = self.getstrength()
+        '''自定义强度'''
+        if self.fc == None and self.fy == None:
+            fc, fy = self.getstrength()
+        else:
+            fc = self.fc
+            fy = self.fy
+
         alpha1, beta1 = self.getab()
         self.A = self.b*self.h
         # 3. 内力信息，略
@@ -112,7 +123,12 @@ class Calculator:
 
         # 2. 计算参数
         h0, ea, l0 = self.getparas()
-        fc, fy = self.getstrength()
+        '''自定义强度'''
+        if self.fc == None and self.fy == None:
+            fc, fy = self.getstrength()
+        else:
+            fc = self.fc
+            fy = self.fy
         alpha1, beta1 = self.getab()
         self.A = self.b*self.h
         # 3. 内力信息，略
@@ -138,6 +154,7 @@ class Calculator:
             self.eccent = "大偏心受压"
             # As2未知的情况
             if self.As2 == 0:
+                ka = 1
                 self.As2 = self.leccent(e, alpha1, fc, xb, h0, fy)
                 # leccent只是公式刚好一样，没有直接关联
                 if self.As2 < pho_min*self.b*self.h:
@@ -146,6 +163,7 @@ class Calculator:
                                  self.N*1e3)/fy + self.As2, 2)
             # As2已知的情况
             else:
+                ka = 0
                 Mu = self.N*1e3*e-fy*self.As2*(h0 - self.a_s)
                 self.test["Mu"] = str(Mu/1e6)+"kN*m"
                 alpha_s = Mu/(alpha1*fc*self.b*h0**2)
@@ -158,6 +176,7 @@ class Calculator:
 
         # 假定小偏心
         else:
+            ka = 1
             self.eccent = "小偏心受压"
             e2 = self.h/2-self.a_s - (e0 - ea)
             # 反向破坏
@@ -201,7 +220,11 @@ class Calculator:
         elif self.pho+self.pho2 < 0.055:
             self.availble = False
             self.checkpho = "不满足整体最小配筋率（自行修正）"
-        self.As2, self.scheme2 = self.indexAs(self.As2)
+
+        if ka == 1:
+            self.As2, self.scheme2 = self.indexAs(self.As2)
+        else:
+            self.scheme2 = "已知面积，不进行配筋方案"
         self.As, self.scheme = self.indexAs(self.As)
         # 未根据需求进行配筋
 
@@ -341,14 +364,81 @@ class Calculator:
         return t
 
 
+# ———————————————————————————————输出区————————————————————————————————
+
+    def textedit(self):
+
+        h0, ea, l0 = self.getparas()
+        if self.fc == None and self.fy == None:
+            fc, fy = self.getstrength()
+        else:
+            fc = self.fc
+            fy = self.fy
+
+        h0 = str(self.h-self.a_s)
+        e0 = self.M/self.N
+        ei = e0+ea
+        ea = str(ea)
+        A = str(self.A)
+        t1 = ["[解]:\n1)截面几何信息:\nh0=h-as=", h0, "mm;\nea==Max(h/30,20)=",
+              ea, "\n横截面积:A=bh=", A, "mm^2"]
+
+        fc = str(fc)
+        fy = str(fy)
+        t2 = ["\n2)材料强度信息:\nfc=", fc, "MPa,fy=", fy, "MPa;"]
+
+        M = str(self.M)
+        try:
+            second = self.second+" "
+        except:
+            second = "由于①②③中都满足存在式子>0,所以必须考虑二阶效应；"
+        t3 = ["\n3)二阶效应计算信息:\n①M1/M2-0.9;\n②N/(fcA)-0.9;\n③lc/i-34+12(M1/M2);\n",
+              second, "\n折算弯矩:", M, "kN*m"]
+
+        e0 = str(e0)
+        ei = str(ei)
+
+        As = str(self.As)
+        As2 = str(self.As2)
+        t4 = ["\n4)计算配筋:\ne0=M \ N=", e0, "mm;\n", "ei=e0+ea=", ei, "\n", "判断破坏条件:", self.eccent,
+              "\n纵向钢筋配筋面积:", As, "mm^2\n纵向受压钢筋配筋面积:", As2, "mm^2"]
+
+        pho = str(self.pho)
+        pho2 = str(self.pho2)
+        t5 = ["\n5)验算适用条件:\n受拉区配筋率:", pho, "\n受压区配筋率:",
+              pho2, "\n验算最小配筋率：", self.checkpho]
+
+        Nu = str(self.Nu)
+        t6 = ["\n6)验算垂直于弯矩作用平面的轴心受压承载力:\nNu=0.9φ[fcbh+fy'(As'+As)]=",
+              Nu, "\n", self.checkNu]
+
+        t7 = ["\n7)根据公称截面面积配筋:\n查表得：As采用：",
+              self.scheme, ",As'采用：", self.scheme2]
+
+        text31 = "".join(t1)
+        text32 = "".join(t2)
+        text33 = "".join(t3)
+        text34 = "".join(t4)
+        text35 = "".join(t5)
+        text36 = "".join(t6)
+        text37 = "".join(t7)
+        texta3 = [text31, text32, text33, text34, text35, text36, text37]
+
+        self.text1 = self.As
+        self.text2 = self.As2
+        self.text3 = "".join(texta3)
+        self.text = [self.text1, self.text2, self.text3]
+
+
 # ———————————————————————————————接口函数区————————————————————————————————
+
 
     def update(self, maps):
         """根据输入更新数据。
         输入格式:b=100,l=300，大小写敏感。
         """
         keys = ["a_s", "b", "l", "ctype", "h", "As2",
-                "M1", "M2", "N", "rtype", "checksym"]
+                "M1", "M2", "N", "rtype", "checksym", "fc", "fy"]
         for key, value in maps.items():
             if key in keys:
                 exec("self.%s=%s" % (key, self.pstr(value)), locals())
