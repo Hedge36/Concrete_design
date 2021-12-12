@@ -52,7 +52,7 @@ def test():
             print("第%d次测试失败" % (fail+1))
 
 
-data = pd.read_excel("./test.xlsx", index_col=0)
+data = pd.read_excel("./data/test.xlsx", index_col=0)
 
 with open("testdata.csv", encoding="utf-8") as f:
     dataset = f.readlines()[1::2]

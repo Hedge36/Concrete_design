@@ -93,6 +93,8 @@ def success(ui):  # 成功运行
 
 def error(ui):  # 出错时提示
     ui.textBrowsercalculate.setText("请输入正确数据")
+    ui.As.setText("")
+    ui.AAs2.setText("")
 
 # 赋默认值
 
@@ -134,7 +136,7 @@ if __name__ == "__main__":
     MainWindow.show()
 
     # 公称截面面积数据表
-    data = pd.read_excel("./test.xlsx", index_col=0)
+    data = pd.read_excel("./data/test.xlsx", index_col=0)
     # 进行实例化
     calculator = Calculator(data)
 

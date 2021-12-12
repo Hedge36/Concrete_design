@@ -8,6 +8,7 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5.QtWidgets import QMessageBox
 from PyQt5.QtGui import QDoubleValidator
 QtCore.QCoreApplication.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling)
+
 # -*- coding: utf-8 -*-
 
 # Form implementation generated from reading ui file 'C:\Users\HUAWEI\Desktop\concrete1.ui'
@@ -22,7 +23,7 @@ class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
         MainWindow.setObjectName("MainWindow")
         MainWindow.setEnabled(True)
-        MainWindow.resize(683, 551)
+        MainWindow.resize(680, 520)
         MainWindow.setMaximumSize(QtCore.QSize(16777215, 16777215))
         self.centralwidget = QtWidgets.QWidget(MainWindow)
         self.centralwidget.setObjectName("centralwidget")
@@ -52,10 +53,10 @@ class Ui_MainWindow(object):
         self.image.setGeometry(QtCore.QRect(9, 72, 341, 181))
         self.image.setMinimumSize(QtCore.QSize(280, 181))
         self.image.setMaximumSize(QtCore.QSize(341, 181))
-        self.image.setStyleSheet("image:url(./show.png)")
+        self.image.setStyleSheet("image:url(./data\\\show.png)")
         self.image.setObjectName("image")
         self.layoutWidget = QtWidgets.QWidget(self.centralwidget)
-        self.layoutWidget.setGeometry(QtCore.QRect(9, 277, 151, 201))
+        self.layoutWidget.setGeometry(QtCore.QRect(9, 277, 158, 201))
         self.layoutWidget.setObjectName("layoutWidget")
         self.formLayout = QtWidgets.QFormLayout(self.layoutWidget)
         self.formLayout.setContentsMargins(0, 0, 0, 0)
@@ -329,11 +330,6 @@ class Ui_MainWindow(object):
         self.labelcalculate.setMaximumSize(QtCore.QSize(16777215, 20))
         self.labelcalculate.setStyleSheet("background-color: rgb(255, 255, 0);")
         self.labelcalculate.setObjectName("labelcalculate")
-        self.AAs2 = QtWidgets.QTextBrowser(self.centralwidget)
-        self.AAs2.setGeometry(QtCore.QRect(474, 96, 120, 20))
-        self.AAs2.setMinimumSize(QtCore.QSize(120, 0))
-        self.AAs2.setMaximumSize(QtCore.QSize(120, 20))
-        self.AAs2.setObjectName("AAs2")
         self.labelAs2 = QtWidgets.QLabel(self.centralwidget)
         self.labelAs2.setGeometry(QtCore.QRect(375, 96, 95, 20))
         self.labelAs2.setMinimumSize(QtCore.QSize(95, 20))
@@ -342,11 +338,6 @@ class Ui_MainWindow(object):
         self.labelAsmm2 = QtWidgets.QLabel(self.centralwidget)
         self.labelAsmm2.setGeometry(QtCore.QRect(598, 96, 18, 16))
         self.labelAsmm2.setObjectName("labelAsmm2")
-        self.As = QtWidgets.QTextBrowser(self.centralwidget)
-        self.As.setGeometry(QtCore.QRect(474, 72, 120, 20))
-        self.As.setMinimumSize(QtCore.QSize(120, 0))
-        self.As.setMaximumSize(QtCore.QSize(120, 20))
-        self.As.setObjectName("As")
         self.labelAs = QtWidgets.QLabel(self.centralwidget)
         self.labelAs.setEnabled(True)
         self.labelAs.setGeometry(QtCore.QRect(375, 72, 95, 20))
@@ -402,9 +393,21 @@ class Ui_MainWindow(object):
         self.label.setMinimumSize(QtCore.QSize(330, 0))
         self.label.setText("")
         self.label.setObjectName("label")
+        self.AAs2 = QtWidgets.QLineEdit(self.centralwidget)
+        self.AAs2.setEnabled(False)
+        self.AAs2.setGeometry(QtCore.QRect(480, 94, 110, 20))
+        self.AAs2.setMinimumSize(QtCore.QSize(0, 20))
+        self.AAs2.setMaximumSize(QtCore.QSize(16777215, 20))
+        self.AAs2.setObjectName("AAs2")
+        self.As = QtWidgets.QLineEdit(self.centralwidget)
+        self.As.setEnabled(False)
+        self.As.setGeometry(QtCore.QRect(480, 70, 110, 20))
+        self.As.setMinimumSize(QtCore.QSize(0, 20))
+        self.As.setMaximumSize(QtCore.QSize(16777215, 20))
+        self.As.setObjectName("As")
         MainWindow.setCentralWidget(self.centralwidget)
         self.menubar = QtWidgets.QMenuBar(MainWindow)
-        self.menubar.setGeometry(QtCore.QRect(0, 0, 683, 21))
+        self.menubar.setGeometry(QtCore.QRect(0, 0, 620, 21))
         self.menubar.setObjectName("menubar")
         MainWindow.setMenuBar(self.menubar)
         self.statusbar = QtWidgets.QStatusBar(MainWindow)
@@ -485,9 +488,10 @@ class Ui_MainWindow(object):
         self.labelAs.setText(_translate("MainWindow", "<html><head/><body><p>纵向钢筋配筋面积</p></body></html>"))
         self.labelA_smm2.setText(_translate("MainWindow", "mm2"))
         self.pushButtoncalculate.setText(_translate("MainWindow", "计算"))
-        self.pushButtonreturn.setText(_translate("MainWindow", "初始化数据"))
+        self.pushButtonreturn.setText(_translate("MainWindow", "初始化参数"))
         self.pushButtonclear.setText(_translate("MainWindow", "清除输入"))
         self.pushButtonclose.setText(_translate("MainWindow", "关闭程序"))
+
 
 
 
