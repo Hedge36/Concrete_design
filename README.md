@@ -1,6 +1,15 @@
-# Project11
+# About Author
+
+> 该项目由中山大学Hedge与华南理工大学ltt共同开发。
+
+
+
+
+
+# Project1
+
 ## 1. Synopsis
-> **Project Name:** 	ConcreteCalculator
+> **Project Name:** ConcreteCalculator
 >
 > **Project Description:**
 >
@@ -25,7 +34,7 @@
 程序主体四大模块（准确来说三个，test不算，后期根据实际情况删除了几个）：
 
 > 1. `Main`:主文件，负责调用各文件，并最终呈现完整界面；
-> 2. ~~`MainLogic`：主逻辑接口，采用Python基本语法完成全部的计算；~~
+> 2. `MainLogic`：主逻辑接口，采用Python基本语法完成全部的计算；
 > 3. `test`：逻辑接口测试文件，没啥用，完工后可删除。
 > 4. `UI`：软件主界面及其控件；
 
